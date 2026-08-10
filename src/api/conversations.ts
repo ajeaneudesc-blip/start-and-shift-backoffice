@@ -76,8 +76,9 @@ export async function getConversation(id: number): Promise<ConvDetail> {
 }
 
 /**
- * Réponse de l'équipe. `from: "equipe"` est le seul mode d'écriture du
- * backoffice — `"assistant"` déclencherait une génération au nom du client.
+ * Réponse de l'équipe. `from: "equipe"` est le seul mode qui écrit réellement un
+ * message dans le fil — `"assistant"` ne poste rien, il demande un brouillon
+ * (voir `requestDraft`).
  */
 export async function sendMessage(id: number, text: string): Promise<ConvMessage> {
   const { data } = await client.post<{ msg: ConvMessage }>(`/api/conversations/${id}/messages`, {
@@ -85,6 +86,29 @@ export async function sendMessage(id: number, text: string): Promise<ConvMessage
     from: 'equipe',
   });
   return data.msg;
+}
+
+/**
+ * `POST /:id/messages` avec `from: "assistant"` — demande un brouillon au modèle.
+ *
+ * **Rien n'est écrit en base et rien n'est poussé au client.** L'API répond
+ * `200 { draft }` au seul designer, qui relit, corrige, puis envoie lui-même via
+ * `sendMessage`. Le modèle ne s'adresse jamais directement au client : c'est un
+ * invariant du backend, un compte CLIENT qui tente ce mode reçoit `400
+ * invalid_from`.
+ *
+ * `brief` est la **consigne** (« rassure-le sur le délai »), pas le texte à
+ * envoyer. Le modèle reçoit en plus l'historique du fil et le contexte
+ * product-marketing du client, côté serveur.
+ *
+ * 503 `assistant_unavailable` quand `ANTHROPIC_API_KEY` est absente du backend.
+ */
+export async function requestDraft(id: number, brief: string): Promise<string> {
+  const { data } = await client.post<{ draft: string }>(`/api/conversations/${id}/messages`, {
+    text: brief,
+    from: 'assistant',
+  });
+  return data.draft;
 }
 
 /**

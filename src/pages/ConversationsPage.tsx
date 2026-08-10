@@ -4,12 +4,13 @@ import {
   getConversation,
   listConversations,
   patchConversation,
+  requestDraft,
   sendMessage,
   type ConvDetail,
   type ConvFilter,
   type ConvListResponse,
 } from '@/api/conversations';
-import { errorMessage } from '@/api/client';
+import { apiErrorCode, errorMessage } from '@/api/client';
 import type { Overview } from '@/api/overview';
 import PageHeader from '@/components/layout/PageHeader';
 import ConvChat from '@/components/modules/conversations/ConvChat';
@@ -157,6 +158,21 @@ export default function ConversationsPage() {
     onError: (err) => setSendError(errorMessage(err)),
   });
 
+  /**
+   * Brouillon d'assistant. Aucune invalidation de cache : l'API n'écrit rien et
+   * ne diffuse rien, le texte ne fait que remplir le composeur.
+   */
+  const suggest = useMutation({
+    mutationFn: (brief: string) => requestDraft(currentId!, brief),
+    onSuccess: () => setSendError(null),
+    onError: (err) =>
+      setSendError(
+        apiErrorCode(err) === 'assistant_unavailable'
+          ? "L'assistant est indisponible. Rédigez la réponse vous-même."
+          : errorMessage(err),
+      ),
+  });
+
   const patch = useMutation({
     mutationFn: (body: Parameters<typeof patchConversation>[1]) =>
       patchConversation(currentId!, body),
@@ -230,6 +246,7 @@ export default function ConversationsPage() {
                 conv={conv}
                 canWrite={canWrite}
                 onSend={(text) => reply.mutateAsync(text)}
+                onRequestDraft={(brief) => suggest.mutateAsync(brief)}
                 onAssignSelf={() => myHandle && patch.mutate({ assignee: myHandle })}
                 onToggleResolved={() =>
                   patch.mutate({ status: conv.status === 'RESOLUE' ? 'OUVERTE' : 'RESOLUE' })

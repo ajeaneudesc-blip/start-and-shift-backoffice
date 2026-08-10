@@ -16,10 +16,19 @@ function authorOf(msg: ConvMessage, clientName: string): string {
   return msg.from === 'assistant' ? 'Assistant' : 'Équipe';
 }
 
+/** Consigne envoyée quand le composeur est vide : le cas le plus courant. */
+const DEFAULT_BRIEF = 'Propose une réponse au dernier message du client.';
+
 interface Props {
   conv: ConvDetail;
   canWrite: boolean;
   onSend: (text: string) => Promise<unknown>;
+  /**
+   * Demande un brouillon au modèle et renvoie son texte. Le résultat remplit le
+   * composeur : il n'est ni envoyé, ni enregistré tant que le designer n'a pas
+   * cliqué « Envoyer ».
+   */
+  onRequestDraft: (brief: string) => Promise<string>;
   onAssignSelf: () => void;
   onToggleResolved: () => void;
   /** Vrai pendant un PATCH : évite le double clic sur les deux boutons. */
@@ -31,6 +40,7 @@ export default function ConvChat({
   conv,
   canWrite,
   onSend,
+  onRequestDraft,
   onAssignSelf,
   onToggleResolved,
   busy,
@@ -38,6 +48,7 @@ export default function ConvChat({
 }: Props) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
   // Le fil s'ouvre sur le dernier message, puis suit chaque nouvel envoi.
@@ -52,14 +63,37 @@ export default function ConvChat({
   async function submit(event: FormEvent) {
     event.preventDefault();
     const text = draft.trim();
-    if (!text || sending) return;
+    if (!text || sending || drafting) return;
 
+    // TODO: le rejet de `onSend` n'est pas rattrapé — un envoi qui échoue laisse
+    // une promesse non gérée dans la console. Sans conséquence visible (le parent
+    // affiche l'échec via `sendError`), mais à aligner sur `askForDraft`, qui
+    // avale le rejet. Laissé en l'état volontairement pour l'instant.
     setSending(true);
     try {
       await onSend(text);
       setDraft('');
     } finally {
       setSending(false);
+    }
+  }
+
+  /**
+   * Le contenu du composeur sert de consigne : le designer écrit son intention
+   * (« rassure-le sur le délai »), puis la remplace par la proposition. Vide, on
+   * retombe sur une consigne générique.
+   */
+  async function askForDraft() {
+    if (sending || drafting) return;
+
+    setDrafting(true);
+    try {
+      setDraft(await onRequestDraft(draft.trim() || DEFAULT_BRIEF));
+    } catch {
+      // Le parent affiche déjà l'échec via `sendError` ; on avale le rejet pour
+      // ne pas laisser passer une promesse non gérée.
+    } finally {
+      setDrafting(false);
     }
   }
 
@@ -232,7 +266,8 @@ export default function ConvChat({
               className="sas-input"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="Répondre au client…"
+              disabled={drafting}
+              placeholder={drafting ? 'Rédaction en cours…' : 'Répondre au client…'}
               style={{
                 flex: 1,
                 height: 34,
@@ -246,8 +281,29 @@ export default function ConvChat({
               }}
             />
             <button
+              type="button"
+              onClick={() => void askForDraft()}
+              disabled={sending || drafting}
+              title="Remplace le composeur par une proposition de l'assistant. Rien n'est envoyé au client : vous relisez, puis vous envoyez vous-même."
+              className="sas-btn-ghost"
+              style={{
+                height: 34,
+                padding: '0 12px',
+                border: `1px solid ${Colors.borderMid}`,
+                borderRadius: Radius.md,
+                background: 'transparent',
+                color: Colors.text85,
+                fontSize: 13,
+                cursor: 'pointer',
+                flex: 'none',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {drafting ? 'Rédaction…' : 'Proposer un brouillon'}
+            </button>
+            <button
               type="submit"
-              disabled={sending || !draft.trim()}
+              disabled={sending || drafting || !draft.trim()}
               className="sas-btn-primary"
               style={{
                 height: 34,
