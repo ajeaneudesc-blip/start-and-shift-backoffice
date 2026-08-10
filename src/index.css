@@ -1,0 +1,76 @@
+/* Repris tel quel du prototype « Backoffice START AND SHIFT ». */
+html,
+body {
+  margin: 0;
+  background: #0e0e11;
+  color: #fff;
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+a {
+  color: #7fa9ff;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #fff;
+}
+
+input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Les états :hover ne sont pas exprimables en style inline : les composants
+   qui en ont besoin portent une de ces classes. */
+.sas-nav-item:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #fff !important;
+}
+
+.sas-role-tab:hover {
+  color: #fff !important;
+}
+
+.sas-btn-primary:hover:not(:disabled) {
+  background: #1e6bff !important;
+}
+
+.sas-btn-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: #fff !important;
+}
+
+.sas-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sas-input:focus {
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@keyframes sas-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
