@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getWsTicket } from '@/api/auth';
 import type { ConvListItem, ConvMessage } from '@/api/conversations';
 import { useAuthStore } from '@/store/authStore';
 import type { ConvStatus } from '@/types';
@@ -15,9 +16,14 @@ export type WsEvent =
 const FIRST_DELAY_MS = 1000;
 const MAX_DELAY_MS = 30_000;
 
-function socketUrl(token: string): string {
+/**
+ * Le JWT n'apparaît jamais ici : c'est un ticket à usage unique, valable 30 s,
+ * obtenu par un `GET /api/ws-ticket` authentifié par en-tête. L'URL d'un socket
+ * traverse trop de journaux pour y mettre un jeton de sept jours.
+ */
+function socketUrl(ticket: string): string {
   const base = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_URL.replace(/^http/, 'ws');
-  return `${base.replace(/\/$/, '')}/ws?token=${encodeURIComponent(token)}`;
+  return `${base.replace(/\/$/, '')}/ws?ticket=${encodeURIComponent(ticket)}`;
 }
 
 export interface Socket {
@@ -48,8 +54,28 @@ export function useWebSocket(onEvent: (event: WsEvent) => void): Socket {
     let attempt = 0;
     let retry: ReturnType<typeof setTimeout> | undefined;
 
-    function open() {
-      const ws = new WebSocket(socketUrl(token!));
+    function retryLater() {
+      if (closedByUs) return;
+      // Un token révoqué fait échouer le ticket (401) : on retente quand même,
+      // l'intercepteur axios finira par renvoyer sur /login.
+      const delay = Math.min(FIRST_DELAY_MS * 2 ** attempt, MAX_DELAY_MS);
+      attempt += 1;
+      retry = setTimeout(() => void open(), delay);
+    }
+
+    async function open() {
+      // Chaque tentative redemande un ticket : il ne sert qu'une fois.
+      let ticket: string;
+      try {
+        ticket = await getWsTicket();
+      } catch {
+        retryLater();
+        return;
+      }
+      // L'utilisateur a pu quitter la page, ou se déconnecter, entre-temps.
+      if (closedByUs) return;
+
+      const ws = new WebSocket(socketUrl(ticket));
       socket.current = ws;
 
       ws.onopen = () => {
@@ -75,16 +101,11 @@ export function useWebSocket(onEvent: (event: WsEvent) => void): Socket {
       ws.onclose = () => {
         setConnected(false);
         socket.current = null;
-        if (closedByUs) return;
-        // Un token révoqué fait échouer la poignée de main (401) : on retente
-        // quand même, l'intercepteur axios finira par renvoyer sur /login.
-        const delay = Math.min(FIRST_DELAY_MS * 2 ** attempt, MAX_DELAY_MS);
-        attempt += 1;
-        retry = setTimeout(open, delay);
+        retryLater();
       };
     }
 
-    open();
+    void open();
 
     return () => {
       closedByUs = true;
