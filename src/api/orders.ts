@@ -28,3 +28,16 @@ export async function advanceOrder(ref: string, state: OrderState): Promise<Orde
   const { data } = await client.patch<OrderRow>(`/api/orders/${encodeURIComponent(ref)}`, { state });
   return data;
 }
+
+/**
+ * Le paiement est confirmé hors app avant cet appel : la commande démarre
+ * directement à l'état PAYE, il n'y a pas de méthode de paiement à transmettre.
+ */
+export async function createOrder(input: {
+  userId: number;
+  pack: string;
+  amountFCFA: number;
+}): Promise<OrderRow> {
+  const { data } = await client.post<OrderRow>('/api/orders', input);
+  return data;
+}

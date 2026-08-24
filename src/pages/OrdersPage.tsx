@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { advanceOrder, listOrders, type OrderRow } from '@/api/orders';
 import PageHeader from '@/components/layout/PageHeader';
+import NewOrderModal from '@/components/modules/orders/NewOrderModal';
 import OrderTable from '@/components/modules/orders/OrderTable';
 import ErrorBox from '@/components/ui/ErrorBox';
 import ReadOnlyBanner from '@/components/ui/ReadOnlyBanner';
@@ -28,6 +29,7 @@ export default function OrdersPage() {
   const { canWrite, readOnly } = usePermissions('orders');
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<StatusFilter>('all');
+  const [newOrderOpen, setNewOrderOpen] = useState(false);
 
   const orders = useQuery({
     queryKey: ['orders', status],
@@ -45,7 +47,12 @@ export default function OrdersPage() {
 
   return (
     <>
-      <PageHeader title={meta.title} desc={meta.desc} action={canWrite ? meta.action : undefined}>
+      <PageHeader
+        title={meta.title}
+        desc={meta.desc}
+        action={canWrite ? meta.action : undefined}
+        onAction={canWrite ? () => setNewOrderOpen(true) : undefined}
+      >
         <Select
           aria-label="État"
           value={status}
@@ -53,6 +60,8 @@ export default function OrdersPage() {
           onChange={setStatus}
         />
       </PageHeader>
+
+      <NewOrderModal open={newOrderOpen} onClose={() => setNewOrderOpen(false)} />
 
       {readOnly && <ReadOnlyBanner />}
 

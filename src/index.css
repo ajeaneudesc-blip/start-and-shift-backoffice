@@ -64,6 +64,10 @@ input::placeholder {
   border-color: rgba(255, 255, 255, 0.28) !important;
 }
 
+.sas-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
