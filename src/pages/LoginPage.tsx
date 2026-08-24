@@ -19,6 +19,8 @@ function formatLocal(input: string): string {
   return local.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
 }
 
+const OTP_LENGTH = 6;
+
 const MESSAGES: Record<string, string> = {
   invalid_phone: 'Numéro invalide. Attendu : 8 chiffres après le +228.',
   // L'API réclame firstName/pseudo quand le numéro est inconnu : on ne les
@@ -26,6 +28,11 @@ const MESSAGES: Record<string, string> = {
   missing_firstName: "Aucun compte n'est associé à ce numéro.",
   missing_pseudo: "Aucun compte n'est associé à ce numéro.",
   account_suspended: 'Ce compte est suspendu. Contactez un administrateur.',
+  too_many_requests: "Trop de demandes. Réessayez dans quelques minutes.",
+  invalid_code: 'Ce code ne correspond pas.',
+  invalid_session: 'Ce code a expiré. Redemandez-en un.',
+  expired: 'Ce code a expiré. Redemandez-en un.',
+  too_many_attempts: 'Trop de codes faux. Redemandez-en un.',
 };
 
 export default function LoginPage() {
@@ -33,13 +40,25 @@ export default function LoginPage() {
   const location = useLocation();
   const signIn = useAuthStore((s) => s.signIn);
 
+  const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [phone, setPhone] = useState('');
+  const [code, setCode] = useState('');
+  const [sessionToken, setSessionToken] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   const redirectTo = (location.state as { from?: string } | null)?.from ?? '/';
 
-  async function onSubmit(event: FormEvent) {
+  function fail(err: unknown, fallback: string) {
+    if (isNetworkError(err)) {
+      setError("L'API est injoignable. Vérifiez qu'elle tourne sur " + import.meta.env.VITE_API_URL + '.');
+      return;
+    }
+    const code = apiErrorCode(err);
+    setError((code && MESSAGES[code]) || fallback);
+  }
+
+  async function onSubmitPhone(event: FormEvent) {
     event.preventDefault();
     if (pending) return;
 
@@ -52,7 +71,30 @@ export default function LoginPage() {
     setPending(true);
     setError(null);
     try {
-      const session = await authApi.login(normalized);
+      const { sessionToken: token } = await authApi.requestOtp(normalized);
+      setSessionToken(token);
+      setCode('');
+      setStep('otp');
+    } catch (err) {
+      fail(err, 'Envoi du code impossible. Réessayez.');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function onSubmitCode(event: FormEvent) {
+    event.preventDefault();
+    if (pending) return;
+
+    if (code.length !== OTP_LENGTH) {
+      setError(`Le code a ${OTP_LENGTH} chiffres.`);
+      return;
+    }
+
+    setPending(true);
+    setError(null);
+    try {
+      const session = await authApi.verifyOtp(sessionToken, code);
 
       // Le backoffice n'est pas ouvert aux comptes clients : la matrice les
       // ferait passer pour des « viewer » et leur ouvrirait la liste des
@@ -66,12 +108,7 @@ export default function LoginPage() {
       signIn(session);
       navigate(redirectTo, { replace: true });
     } catch (err) {
-      if (isNetworkError(err)) {
-        setError("L'API est injoignable. Vérifiez qu'elle tourne sur " + import.meta.env.VITE_API_URL + '.');
-      } else {
-        const code = apiErrorCode(err);
-        setError((code && MESSAGES[code]) || 'Connexion impossible. Réessayez.');
-      }
+      fail(err, 'Connexion impossible. Réessayez.');
     } finally {
       setPending(false);
     }
@@ -88,7 +125,7 @@ export default function LoginPage() {
       }}
     >
       <form
-        onSubmit={onSubmit}
+        onSubmit={step === 'phone' ? onSubmitPhone : onSubmitCode}
         style={{
           width: 360,
           maxWidth: '100%',
@@ -109,59 +146,89 @@ export default function LoginPage() {
             Backoffice
           </h1>
           <p style={{ margin: 0, fontSize: 13, lineHeight: '19px', color: Colors.text50 }}>
-            Connectez-vous avec le numéro de votre compte équipe.
+            {step === 'phone'
+              ? 'Connectez-vous avec le numéro de votre compte équipe.'
+              : `Code envoyé par SMS au +228 ${formatLocal(phone)}.`}
           </p>
         </div>
 
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ fontSize: 11, letterSpacing: '.05em', color: Colors.text45 }}>
-            NUMÉRO DE TÉLÉPHONE
-          </span>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              height: 38,
-              border: `1px solid ${Colors.borderMid}`,
-              borderRadius: Radius.md,
-              background: Colors.bg,
-              overflow: 'hidden',
-            }}
-          >
-            <span
+        {step === 'phone' ? (
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 11, letterSpacing: '.05em', color: Colors.text45 }}>
+              NUMÉRO DE TÉLÉPHONE
+            </span>
+            <div
               style={{
-                padding: '0 10px',
-                fontSize: 13,
-                color: Colors.text50,
-                borderRight: `1px solid ${Colors.border}`,
-                lineHeight: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                height: 38,
+                border: `1px solid ${Colors.borderMid}`,
+                borderRadius: Radius.md,
+                background: Colors.bg,
+                overflow: 'hidden',
               }}
             >
-              +228
+              <span
+                style={{
+                  padding: '0 10px',
+                  fontSize: 13,
+                  color: Colors.text50,
+                  borderRight: `1px solid ${Colors.border}`,
+                  lineHeight: '36px',
+                }}
+              >
+                +228
+              </span>
+              <input
+                className="sas-input"
+                value={phone}
+                onChange={(e) => setPhone(formatLocal(e.target.value))}
+                placeholder="90 12 34 56"
+                inputMode="tel"
+                autoComplete="tel-national"
+                autoFocus
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  height: '100%',
+                  border: 'none',
+                  background: 'transparent',
+                  color: Colors.textPrimary,
+                  fontSize: 13,
+                  padding: '0 12px',
+                  outline: 'none',
+                  letterSpacing: '.04em',
+                }}
+              />
+            </div>
+          </label>
+        ) : (
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 11, letterSpacing: '.05em', color: Colors.text45 }}>
+              CODE REÇU
             </span>
             <input
               className="sas-input"
-              value={phone}
-              onChange={(e) => setPhone(formatLocal(e.target.value))}
-              placeholder="90 12 34 56"
-              inputMode="tel"
-              autoComplete="tel-national"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH))}
+              placeholder="000000"
+              inputMode="numeric"
+              autoComplete="one-time-code"
               autoFocus
               style={{
-                flex: 1,
-                minWidth: 0,
-                height: '100%',
-                border: 'none',
-                background: 'transparent',
+                height: 38,
+                border: `1px solid ${Colors.borderMid}`,
+                borderRadius: Radius.md,
+                background: Colors.bg,
                 color: Colors.textPrimary,
                 fontSize: 13,
                 padding: '0 12px',
                 outline: 'none',
-                letterSpacing: '.04em',
+                letterSpacing: '.1em',
               }}
             />
-          </div>
-        </label>
+          </label>
+        )}
 
         {error && (
           <div
@@ -196,12 +263,31 @@ export default function LoginPage() {
             transition: 'background 160ms ease',
           }}
         >
-          {pending ? 'Connexion…' : 'Se connecter'}
+          {step === 'phone' ? (pending ? 'Envoi…' : 'Recevoir un code') : pending ? 'Connexion…' : 'Confirmer'}
         </button>
 
-        <p style={{ margin: 0, fontSize: 11, lineHeight: '16px', color: Colors.text35 }}>
-          Pas de mot de passe : l'accès est lié au numéro enregistré sur votre compte équipe.
-        </p>
+        {step === 'phone' ? (
+          <p style={{ margin: 0, fontSize: 11, lineHeight: '16px', color: Colors.text35 }}>
+            Pas de mot de passe : l'accès est lié au numéro enregistré sur votre compte équipe.
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => { setStep('phone'); setError(null); }}
+            className="sas-btn-ghost"
+            disabled={pending}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: Colors.text50,
+              fontSize: 12,
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            ← Changer de numéro
+          </button>
+        )}
       </form>
     </div>
   );

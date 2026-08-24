@@ -9,6 +9,11 @@
 //
 // Il suppose l'API démarrée et la base au jeu de démonstration (`npm run db:seed`
 // côté start-and-shift-api). Les numéros ci-dessous en viennent.
+//
+// 5 comptes × (request + dev-otp + verify + logout) = 20 appels à /api/auth :
+// au-dessus des 10 requêtes/minute/IP par défaut (voir backend/src/routes/auth.ts).
+// Lancer avec RATE_LIMIT_ENABLED=false côté API pour ce script, comme le fait
+// la suite de tests (backend/.env.test).
 const API = process.env.API_URL ?? 'http://localhost:3000';
 
 const ACCOUNTS = {
@@ -51,14 +56,29 @@ const WRITES = {
   roles: { method: 'PATCH', path: '/api/roles/audit/viewer', body: { level: 9 } },
 };
 
+// Le fournisseur SMS "local" ne délivre rien : /session/dev-otp (actif
+// seulement en dev, avec SMS_PROVIDER=local) est le seul moyen de récupérer le
+// code sans lire les logs serveur — voir backend/src/routes/auth.ts.
 async function login(phone) {
-  const res = await fetch(`${API}/api/auth/session`, {
+  const demande = await fetch(`${API}/api/auth/session/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ phone }),
   });
-  if (!res.ok) throw new Error(`login ${phone} → ${res.status}`);
-  return (await res.json()).token;
+  if (!demande.ok) throw new Error(`login ${phone} → demande ${demande.status}`);
+  const { sessionToken } = await demande.json();
+
+  const devOtp = await fetch(`${API}/api/auth/session/dev-otp?phone=${encodeURIComponent(phone)}`);
+  const { code } = devOtp.ok ? await devOtp.json() : {};
+  if (!code) throw new Error(`login ${phone} → pas de code dev-otp (SMS_PROVIDER local et NODE_ENV=development ?)`);
+
+  const verifie = await fetch(`${API}/api/auth/session/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionToken, otp: code }),
+  });
+  if (!verifie.ok) throw new Error(`login ${phone} → verify ${verifie.status}`);
+  return (await verifie.json()).token;
 }
 
 async function call(token, method, path, body) {
