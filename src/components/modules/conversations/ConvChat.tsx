@@ -65,14 +65,12 @@ export default function ConvChat({
     const text = draft.trim();
     if (!text || sending || drafting) return;
 
-    // TODO: le rejet de `onSend` n'est pas rattrapé — un envoi qui échoue laisse
-    // une promesse non gérée dans la console. Sans conséquence visible (le parent
-    // affiche l'échec via `sendError`), mais à aligner sur `askForDraft`, qui
-    // avale le rejet. Laissé en l'état volontairement pour l'instant.
     setSending(true);
     try {
       await onSend(text);
       setDraft('');
+    } catch {
+      // Le parent affiche déjà l'échec via sendError
     } finally {
       setSending(false);
     }
