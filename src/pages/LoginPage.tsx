@@ -29,6 +29,7 @@ const MESSAGES: Record<string, string> = {
   missing_pseudo: "Aucun compte n'est associé à ce numéro.",
   account_suspended: 'Ce compte est suspendu. Contactez un administrateur.',
   too_many_requests: "Trop de demandes. Réessayez dans quelques minutes.",
+  sms_delivery_failed: "Le SMS n'a pas pu partir. Vérifiez le numéro, puis redemandez un code.",
   invalid_code: 'Ce code ne correspond pas.',
   invalid_session: 'Ce code a expiré. Redemandez-en un.',
   expired: 'Ce code a expiré. Redemandez-en un.',
