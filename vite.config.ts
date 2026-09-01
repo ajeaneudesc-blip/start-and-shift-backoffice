@@ -5,6 +5,9 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Chemins relatifs : l'EXE Electron charge index.html en file://, où une base
+  // absolue « / » pointerait sur la racine du disque (fenêtre blanche).
+  base: './',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

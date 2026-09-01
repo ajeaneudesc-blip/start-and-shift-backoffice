@@ -4,7 +4,9 @@ import { apiErrorCode, errorMessage } from '@/api/client';
 import { createOrder } from '@/api/orders';
 import { listUsers, type UserRow } from '@/api/users';
 import ErrorBox from '@/components/ui/ErrorBox';
+import { PAYMENT_METHOD_LABELS } from '@/labels';
 import { Colors, Radius } from '@/theme/tokens';
+import type { PaymentMethod } from '@/types';
 
 const SEARCH_DEBOUNCE_MS = 300;
 // Seul produit réel du catalogue actuel (frontend/src/constants/offers.ts) :
@@ -12,11 +14,13 @@ const SEARCH_DEBOUNCE_MS = 300;
 // des commandes sur d'autres packs (Menu, Affiche…).
 const DEFAULT_PACK = 'Pack identité';
 const DEFAULT_AMOUNT = 18000;
+const PAYMENT_METHODS: PaymentMethod[] = ['ESPECES', 'TMONEY', 'FLOOZ'];
 
 const MESSAGES: Record<string, string> = {
   invalid_userId: 'Sélectionnez un client.',
   pack_required: 'Indiquez le pack.',
   invalid_amount: 'Montant invalide.',
+  invalid_paymentMethod: 'Moyen de paiement invalide.',
   user_not_found: 'Client introuvable.',
   ref_generation_failed: 'Réessayez, la génération de référence a échoué.',
 };
@@ -40,6 +44,7 @@ export default function NewOrderModal({ open, onClose }: Props) {
   const [client, setClient] = useState<UserRow | null>(null);
   const [pack, setPack] = useState(DEFAULT_PACK);
   const [amount, setAmount] = useState(String(DEFAULT_AMOUNT));
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ESPECES');
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS);
@@ -47,7 +52,8 @@ export default function NewOrderModal({ open, onClose }: Props) {
   }, [query]);
 
   const create = useMutation({
-    mutationFn: () => createOrder({ userId: client!.id, pack: pack.trim(), amountFCFA: Number(amount) }),
+    mutationFn: () =>
+      createOrder({ userId: client!.id, pack: pack.trim(), amountFCFA: Number(amount), paymentMethod }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['overview'] });
@@ -70,6 +76,7 @@ export default function NewOrderModal({ open, onClose }: Props) {
     setClient(null);
     setPack(DEFAULT_PACK);
     setAmount(String(DEFAULT_AMOUNT));
+    setPaymentMethod('ESPECES');
     // `create` volontairement hors dépendances : sa référence change à chaque
     // rendu (objet de mutation TanStack Query), l'y ajouter réinitialiserait
     // le formulaire à chaque frappe pendant que la modale reste ouverte.
@@ -217,6 +224,22 @@ export default function NewOrderModal({ open, onClose }: Props) {
             onChange={(e) => setAmount(e.target.value)}
             style={fieldStyle}
           />
+        </label>
+
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: Colors.text50 }}>
+          Moyen de paiement
+          <select
+            className="sas-input"
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+            style={fieldStyle}
+          >
+            {PAYMENT_METHODS.map((m) => (
+              <option key={m} value={m}>
+                {PAYMENT_METHOD_LABELS[m]}
+              </option>
+            ))}
+          </select>
         </label>
 
         {errorText && <ErrorBox message={errorText} />}

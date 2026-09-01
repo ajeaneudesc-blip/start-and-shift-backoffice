@@ -2,6 +2,7 @@ import type { Tone } from '@/theme/tones';
 import type {
   ConvStatus,
   OrderState,
+  PaymentMethod,
   TemplateState,
   UserPlan,
   UserRole,
@@ -37,6 +38,12 @@ export const ORDER_STATE_TONES: Record<OrderState, Tone> = {
   EN_PRODUCTION: 'warn',
   LIVRE: 'ok',
   ARCHIVE: 'muted',
+};
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  ESPECES: 'Espèces',
+  TMONEY: 'T-Money',
+  FLOOZ: 'Flooz',
 };
 
 export const TEMPLATE_STATE_LABELS: Record<TemplateState, string> = {

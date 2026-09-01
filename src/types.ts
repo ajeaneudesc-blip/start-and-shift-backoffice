@@ -5,6 +5,7 @@ export type UserStatus = 'ACTIF' | 'INVITE' | 'SUSPENDU';
 export type ConvStatus = 'OUVERTE' | 'EN_ATTENTE' | 'RESOLUE';
 export type MessageFrom = 'client' | 'equipe' | 'assistant';
 export type OrderState = 'PAYE' | 'EN_PRODUCTION' | 'LIVRE' | 'ARCHIVE';
+export type PaymentMethod = 'ESPECES' | 'TMONEY' | 'FLOOZ';
 export type TemplateState = 'PUBLIE' | 'BROUILLON';
 
 /** Ligne User telle que sérialisée par l'API (dates en ISO). */

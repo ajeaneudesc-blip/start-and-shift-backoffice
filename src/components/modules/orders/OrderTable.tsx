@@ -1,6 +1,6 @@
 import type { OrderRow } from '@/api/orders';
 import Badge from '@/components/ui/Badge';
-import { ORDER_STATE_LABELS, ORDER_STATE_TONES } from '@/labels';
+import { ORDER_STATE_LABELS, ORDER_STATE_TONES, PAYMENT_METHOD_LABELS } from '@/labels';
 import { Colors } from '@/theme/tokens';
 
 const COLS = {
@@ -8,6 +8,7 @@ const COLS = {
   client: { flex: 1, minWidth: 170 },
   pack: { width: 150, flex: 'none' as const },
   amount: { width: 110, flex: 'none' as const },
+  payment: { width: 100, flex: 'none' as const },
   state: { width: 130, flex: 'none' as const },
   action: { width: 170, flex: 'none' as const },
 };
@@ -39,6 +40,7 @@ export default function OrderTable({ items, canWrite, onAdvance, busyRef, loadin
         <span style={COLS.client}>CLIENT</span>
         <span style={COLS.pack}>PACK</span>
         <span style={COLS.amount}>MONTANT</span>
+        <span style={COLS.payment}>PAIEMENT</span>
         <span style={COLS.state}>ÉTAT</span>
         <span style={{ ...COLS.action, textAlign: 'right' }}>ACTION</span>
       </div>
@@ -72,6 +74,9 @@ export default function OrderTable({ items, canWrite, onAdvance, busyRef, loadin
 
           <span style={{ ...COLS.pack, color: Colors.text70, fontSize: 12 }}>{o.pack}</span>
           <span style={{ ...COLS.amount, fontSize: 13 }}>{o.amount}</span>
+          <span style={{ ...COLS.payment, color: Colors.text70, fontSize: 12 }}>
+            {PAYMENT_METHOD_LABELS[o.paymentMethod]}
+          </span>
 
           <span style={COLS.state}>
             <Badge tone={ORDER_STATE_TONES[o.state]}>{ORDER_STATE_LABELS[o.state]}</Badge>
