@@ -2,33 +2,24 @@ import client from '@/api/client';
 import type { ApiUser } from '@/types';
 
 /**
- * L'API s'authentifie au numéro de téléphone, sans mot de passe, par code SMS
- * en deux temps : POST /api/auth/session/{request,verify}, et non le
- * POST /api/auth/login décrit dans la spec. Voir src/routes/auth.ts de
- * start-and-shift-api.
+ * Le backoffice se connecte au pseudo et au mot de passe
+ * (POST /api/auth/login). Le numéro et le code SMS restent la porte de l'app
+ * cliente : ici, rien ne dépend plus de la couverture réseau ni du crédit SMS
+ * pour que l'équipe travaille.
  */
 export interface SessionResponse {
   token: string;
   user: ApiUser;
 }
 
-/** Numéro togolais : +228 suivi de 8 chiffres — même contrôle que l'API. */
-export const PHONE_RE = /^\+228\d{8}$/;
-
 /**
- * Demande un code par SMS. On n'envoie que le numéro : sans firstName/pseudo,
- * l'API refuse d'en préparer un pour un compte inconnu (`missing_firstName`),
- * ce qui est le comportement voulu pour un backoffice — on ne s'y inscrit pas,
- * on y est invité.
+ * `POST /api/auth/login` — pseudo et mot de passe. L'API répond 401
+ * `invalid_credentials` sans distinguer un pseudo inconnu, un compte client et
+ * un mot de passe faux : les pseudos de l'équipe sont visibles des clients
+ * dans les conversations, les énumérer ne doit rien apprendre.
  */
-export async function requestOtp(phone: string): Promise<{ sessionToken: string; expiresIn: number }> {
-  const { data } = await client.post('/api/auth/session/request', { phone });
-  return data;
-}
-
-/** Vérifie le code et ouvre la session. */
-export async function verifyOtp(sessionToken: string, otp: string): Promise<SessionResponse> {
-  const { data } = await client.post<SessionResponse>('/api/auth/session/verify', { sessionToken, otp });
+export async function login(pseudo: string, password: string): Promise<SessionResponse> {
+  const { data } = await client.post<SessionResponse>('/api/auth/login', { pseudo, password });
   return data;
 }
 
